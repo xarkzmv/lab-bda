@@ -18,6 +18,7 @@ sysctl -w vm.max_map_count=1048575
 exit
 
 
+```
 
 ### Levantar el cluster
 
