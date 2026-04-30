@@ -1,0 +1,102 @@
+version: '3.8'
+
+networks:
+  cassandra-net:
+    driver: bridge
+
+volumes:
+  cassandra_data1:
+  cassandra_data2:
+  cassandra_data3:
+
+services:
+
+  # ─── NODO 1 (seed) ───────────────────────────────────────────────────────────
+  cassandra-node1:
+    image: cassandra:latest
+    container_name: cassandra-node1
+    hostname: cassandra-node1
+    networks:
+      - cassandra-net
+    ports:
+      - "9042:9042"   # CQL nativo  (conéctate desde Power BI / cqlsh aquí)
+      - "7000:7000"   # Gossip inter-nodo
+    environment:
+      CASSANDRA_CLUSTER_NAME:      "UniversiaCluster"
+      CASSANDRA_DC:                "datacenter1"
+      CASSANDRA_RACK:              "rack1"
+      CASSANDRA_ENDPOINT_SNITCH:   "GossipingPropertyFileSnitch"
+      CASSANDRA_SEEDS:             "cassandra-node1"   # Nodo 1 es el seed
+      CASSANDRA_NUM_TOKENS:        "256"
+      MAX_HEAP_SIZE:               "512M"
+      HEAP_NEWSIZE:                "128M"
+    volumes:
+      - cassandra_data1:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status | grep -E '^UN' | wc -l"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ─── NODO 2 ──────────────────────────────────────────────────────────────────
+  cassandra-node2:
+    image: cassandra:latest
+    container_name: cassandra-node2
+    hostname: cassandra-node2
+    networks:
+      - cassandra-net
+    ports:
+      - "9043:9042"   # CQL expuesto en puerto 9043 del host
+      - "7001:7000"
+    environment:
+      CASSANDRA_CLUSTER_NAME:      "UniversiaCluster"
+      CASSANDRA_DC:                "datacenter1"
+      CASSANDRA_RACK:              "rack1"
+      CASSANDRA_ENDPOINT_SNITCH:   "GossipingPropertyFileSnitch"
+      CASSANDRA_SEEDS:             "cassandra-node1"
+      CASSANDRA_NUM_TOKENS:        "256"
+      MAX_HEAP_SIZE:               "512M"
+      HEAP_NEWSIZE:                "128M"
+    volumes:
+      - cassandra_data2:/var/lib/cassandra
+    depends_on:
+      cassandra-node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status | grep -E '^UN' | wc -l"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ─── NODO 3 ──────────────────────────────────────────────────────────────────
+  cassandra-node3:
+    image: cassandra:latest
+    container_name: cassandra-node3
+    hostname: cassandra-node3
+    networks:
+      - cassandra-net
+    ports:
+      - "9044:9042"   # CQL expuesto en puerto 9044 del host
+      - "7002:7000"
+    environment:
+      CASSANDRA_CLUSTER_NAME:      "UniversiaCluster"
+      CASSANDRA_DC:                "datacenter1"
+      CASSANDRA_RACK:              "rack1"
+      CASSANDRA_ENDPOINT_SNITCH:   "GossipingPropertyFileSnitch"
+      CASSANDRA_SEEDS:             "cassandra-node1"
+      CASSANDRA_NUM_TOKENS:        "256"
+      MAX_HEAP_SIZE:               "512M"
+      HEAP_NEWSIZE:                "128M"
+    volumes:
+      - cassandra_data3:/var/lib/cassandra
+    depends_on:
+      cassandra-node2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status | grep -E '^UN' | wc -l"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s

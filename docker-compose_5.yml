@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  nodo_1:
+    image: cassandra:4.1
+    container_name: nodo_1
+    ports:
+      - "7001:9042"
+    environment:
+      - CASSANDRA_CLUSTER_NAME=ClusterUniversia
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_RACK=rack1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=200M
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - ayudantia
+
+  nodo_2:
+    image: cassandra:4.1
+    container_name: nodo_2
+    ports:
+      - "7002:9042"
+    environment:
+      - CASSANDRA_CLUSTER_NAME=ClusterUniversia
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_RACK=rack1
+      - CASSANDRA_SEEDS=nodo_1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=200M
+    depends_on:
+      nodo_1:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - ayudantia
+
+  nodo_3:
+    image: cassandra:4.1
+    container_name: nodo_3
+    ports:
+      - "7003:9042"
+    environment:
+      - CASSANDRA_CLUSTER_NAME=ClusterUniversia
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_RACK=rack1
+      - CASSANDRA_SEEDS=nodo_1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=200M
+    depends_on:
+      nodo_1:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - ayudantia
+
+networks:
+  ayudantia:
+    driver: bridge

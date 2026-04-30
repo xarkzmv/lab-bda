@@ -1,0 +1,64 @@
+CREATE KEYSPACE universia 
+WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};
+
+USE universia;
+
+CREATE TABLE postulantes_por_carrera (
+    carrera       TEXT,
+    periodo       INT,
+    cedula        TEXT,
+    sexo          TEXT,
+    preferencia   INT,
+    estado        TEXT,
+    facultad      TEXT,
+    puntaje       DOUBLE,
+    grupo_depen   TEXT,
+    region        TEXT,
+    latitud       DOUBLE,
+    longitud      DOUBLE,
+    ptje_nem      DOUBLE,
+    psu_promlm    DOUBLE,
+    pace          TEXT,
+    gratuidad     TEXT,
+    PRIMARY KEY ((carrera, estado), periodo, cedula)
+) WITH CLUSTERING ORDER BY (periodo ASC, cedula ASC);
+
+CREATE TABLE postulantes_por_region_carrera (
+    region        TEXT,
+    carrera       TEXT,
+    periodo       INT,
+    cedula        TEXT,
+    sexo          TEXT,
+    preferencia   INT,
+    estado        TEXT,
+    facultad      TEXT,
+    puntaje       DOUBLE,
+    grupo_depen   TEXT,
+    latitud       DOUBLE,
+    longitud      DOUBLE,
+    ptje_nem      DOUBLE,
+    psu_promlm    DOUBLE,
+    pace          TEXT,
+    gratuidad     TEXT,
+    PRIMARY KEY ((region, carrera, estado), periodo, cedula)
+) WITH CLUSTERING ORDER BY (periodo ASC, cedula ASC);
+
+CREATE TABLE postulantes_por_facultad (
+    facultad      TEXT,
+    puntaje       DOUBLE,
+    cedula        TEXT,
+    periodo       INT,
+    sexo          TEXT,
+    preferencia   INT,
+    carrera       TEXT,
+    estado        TEXT,
+    grupo_depen   TEXT,
+    region        TEXT,
+    latitud       DOUBLE,
+    longitud      DOUBLE,
+    ptje_nem      DOUBLE,
+    psu_promlm    DOUBLE,
+    pace          TEXT,
+    gratuidad     TEXT,
+    PRIMARY KEY ((facultad, estado), puntaje, cedula)
+) WITH CLUSTERING ORDER BY (puntaje DESC, cedula ASC);

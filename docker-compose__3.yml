@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  nodo_1:
+    image: cassandra:latest
+    container_name: nodo_1
+    ports:
+      - "7001:9042"
+    environment:
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=200M
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - ayudantia
+
+  nodo_2:
+    image: cassandra:latest
+    container_name: nodo_2
+    ports:
+      - "7002:9042"
+    environment:
+      - CASSANDRA_SEEDS=nodo_1
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=200M
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - ayudantia
+    depends_on:
+      - nodo_1
+
+  nodo_3:
+    image: cassandra:latest
+    container_name: nodo_3
+    ports:
+      - "7003:9042"
+    environment:
+      - CASSANDRA_SEEDS=nodo_1
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=200M
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - ayudantia
+    depends_on:
+      - nodo_1
+
+networks:
+  ayudantia:
+    driver: bridge
