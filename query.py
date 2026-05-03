@@ -18,9 +18,9 @@ def conectar():
     raise ConnectionError("No se pudo conectar a ningún nodo.")
 
 def ejecutar_consultas(session):
-    print("A. MATRICULADOS EN MEDICINA (ORDENADOS POR PERIODO)")
+    print("A. MATRICULADOS EN MEDICINA")
     query_a = """
-        SELECT periodo, cedula, sexo, puntaje
+        SELECT periodo, cedula, puntaje
         FROM postulantes_por_carrera
         WHERE carrera = 'MEDICINA' 
           AND matriculado = 'SI'
