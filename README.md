@@ -1,14 +1,14 @@
 # lab-1-bda
 # Laboratorio 1: Cassandra - UniversiaCluster
 
-Este proyecto implementa un clúster de Cassandra con 3 nodos usando Docker y carga datos de postulaciones universitarias para su análisis en Power BI.
+Este proyecto implementa un clúster de Cassandra con 3 nodos usando Docker y carga datos de postulaciones universitarias de los años 2018, 2019 y 2020 para su análisis en Power BI.
 
-## 📋 Requisitos Previos
+## Requisitos Previos
 * Docker Desktop instalado y configurado en Windows.
 * Python 3.9 o superior.
 * Archivo de datos `postulaciones.xlsx` en la carpeta raíz.
 
-## 🚀 Guía de Instalación
+## Guía de Instalación
 
 ### Paso 1: Configuración del Sistema (Windows/WSL2)
 Cassandra requiere límites de memoria virtual específicos. Abre una terminal de PowerShell como administrador y ejecuta:
