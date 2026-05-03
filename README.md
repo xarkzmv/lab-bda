@@ -16,8 +16,6 @@ Cassandra requiere límites de memoria virtual específicos. Abre una terminal d
 wsl -d docker-desktop
 sysctl -w vm.max_map_count=1048575
 exit
-
-
 ```
 
 ### Levantar el cluster

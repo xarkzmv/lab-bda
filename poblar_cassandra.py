@@ -63,10 +63,6 @@ def conectar():
             print(f"Puerto {port} no disponible: {e}")
     raise ConnectionError("No se pudo conectar a ningún nodo de Cassandra.")
 
-# ──────────────────────────────────────────────
-# PREPARED STATEMENTS
-# ──────────────────────────────────────────────
-
 def preparar_statements(session):
     # NOTA: las tablas usan (carrera, estado) + periodo como PK.
     # Para evitar sobreescribir filas con mismo periodo, añadimos
@@ -240,7 +236,7 @@ def verificar(session):
 
 
 def main():
-    print(f"\nLeyendo {EXCEL_PATH}...")
+    print(f"\nLeyendo {EXCEL_PATH}")
     try:
         df = pd.read_excel(EXCEL_PATH, engine="openpyxl")
     except FileNotFoundError:
@@ -264,7 +260,7 @@ def main():
     errores = cargar_datos(session, df, stmt_c, stmt_r, stmt_f)
     elapsed = time.time() - inicio
 
-    print(f"\nCarga completada en {elapsed:.1f}s | errores: {errores}")
+    print(f"\nCarga completada en {elapsed:.1f}s,errores: {errores}")
     verificar(session)
     cluster.shutdown()
     print("\nConexión cerrada.")
