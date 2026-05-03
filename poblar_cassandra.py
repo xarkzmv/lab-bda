@@ -1,10 +1,8 @@
 """
-poblar_cassandra.py
 Carga el archivo postulaciones.xlsx en las 3 tablas de Cassandra.
-
 Uso:
-    pip install cassandra-driver pandas openpyxl
-    python poblar_cassandra.py
+    pip install -r requirements.txt
+    python poblar_cassandra.py / python3 poblar_cassandra.py
 
 El docker-compose expone:
     nodo_1 → localhost:7001
@@ -21,7 +19,7 @@ from cassandra import ConsistencyLevel
 from cassandra.query import BatchStatement, SimpleStatement
 
 
-EXCEL_PATH   = "postulaciones.xlsx"   # ruta al archivo Excel
+EXCEL_PATH   = "postulaciones.xlsx" 
 CONTACT_POINTS = ["127.0.0.1"]        # IP del host Docker
 PORTS        = [9042, 9043, 9044]     # puertos del docker-compose actual
 KEYSPACE     = "universia"
@@ -64,7 +62,7 @@ def conectar():
     raise ConnectionError("No se pudo conectar a ningún nodo de Cassandra.")
 
 def preparar_statements(session):
-    # NOTA: las tablas usan (carrera, estado) + periodo como PK.
+    # NOTA: las tablas usan (carrera, matriculado) + periodo como PK.
     # Para evitar sobreescribir filas con mismo periodo, añadimos
     # cedula como parte del valor — Cassandra guarda la última escritura
     # (last-write-wins). Si quieres unicidad real, hay que recrear
@@ -72,7 +70,7 @@ def preparar_statements(session):
 
     stmt_carrera = session.prepare("""
         INSERT INTO postulantes_por_carrera
-            (carrera, estado, periodo, cedula, sexo, preferencia,
+            (carrera, matriculado, periodo, cedula, sexo, preferencia,
              facultad, puntaje, grupo_depen, region,
              latitud, longitud, ptje_nem, psu_promlm, pace, gratuidad)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -80,7 +78,7 @@ def preparar_statements(session):
 
     stmt_region = session.prepare("""
         INSERT INTO postulantes_por_region_carrera
-            (region, carrera, estado, periodo, cedula, sexo, preferencia,
+            (region, carrera, matriculado, periodo, cedula, sexo, preferencia,
              facultad, puntaje, grupo_depen,
              latitud, longitud, ptje_nem, psu_promlm, pace, gratuidad)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -88,7 +86,7 @@ def preparar_statements(session):
 
     stmt_facultad = session.prepare("""
         INSERT INTO postulantes_por_facultad
-            (facultad, estado, puntaje, cedula, periodo, sexo, preferencia,
+            (facultad, matriculado, puntaje, cedula, periodo, sexo, preferencia,
              carrera, grupo_depen, region,
              latitud, longitud, ptje_nem, psu_promlm, pace, gratuidad)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -114,7 +112,7 @@ def cargar_datos(session, df, stmt_carrera, stmt_region, stmt_facultad):
     for i, row in df.iterrows():
         try:
             carrera     = safe_str(row.get("CARRERA"))
-            estado      = safe_str(row.get("MATRICULADO") or row.get("ESTADO"))
+            matriculado      = safe_str(row.get("MATRICULADO") or row.get("ESTADO"))
             periodo     = safe_int(row.get("PERIODO"))
             cedula      = safe_str(row.get("CEDULA"))
             sexo        = safe_str(row.get("SEXO"))
@@ -132,7 +130,7 @@ def cargar_datos(session, df, stmt_carrera, stmt_region, stmt_facultad):
 
             #Tabla 1: postulantes_por_carrera 
             batch_c.add(stmt_carrera, (
-                carrera, estado, periodo, cedula, sexo, preferencia,
+                carrera, matriculado, periodo, cedula, sexo, preferencia,
                 facultad, puntaje, grupo_depen, region,
                 latitud, longitud, ptje_nem, psu_promlm, pace, gratuidad
             ))
@@ -140,7 +138,7 @@ def cargar_datos(session, df, stmt_carrera, stmt_region, stmt_facultad):
 
             #Tabla 2: postulantes_por_region_carrera
             batch_r.add(stmt_region, (
-                region, carrera, estado, periodo, cedula, sexo, preferencia,
+                region, carrera, matriculado, periodo, cedula, sexo, preferencia,
                 facultad, puntaje, grupo_depen,
                 latitud, longitud, ptje_nem, psu_promlm, pace, gratuidad
             ))
@@ -150,7 +148,7 @@ def cargar_datos(session, df, stmt_carrera, stmt_region, stmt_facultad):
             # puntaje puede ser None; Cassandra no acepta None en clustering key
             puntaje_safe = puntaje if puntaje is not None else 0.0
             batch_f.add(stmt_facultad, (
-                facultad, estado, puntaje_safe, cedula, periodo, sexo, preferencia,
+                facultad, matriculado, puntaje_safe, cedula, periodo, sexo, preferencia,
                 carrera, grupo_depen, region,
                 latitud, longitud, ptje_nem, psu_promlm, pace, gratuidad
             ))
@@ -175,7 +173,7 @@ def cargar_datos(session, df, stmt_carrera, stmt_region, stmt_facultad):
             batch_f = BatchStatement(consistency_level=ConsistencyLevel.ONE)
             count_f = 0
 
-        #Progreso cada 500 filas
+        #Progreso cada 500
         if (i + 1) % 500 == 0:
             print(f"  → {i + 1}/{total} filas procesadas...")
 
@@ -199,44 +197,9 @@ def verificar(session):
         except Exception as e:
             print(f"{tabla}: error al contar {e}")
 
-    print("\nPrueba de las 3 consultas del negocio:")
-
-    print("\n  a) Matriculados en MEDICINA:")
-    rows = session.execute("""
-        SELECT cedula, periodo, sexo, puntaje
-        FROM postulantes_por_carrera
-        WHERE carrera = 'MEDICINA' AND estado = 'MATRICULADO'
-        LIMIT 5
-    """)
-    for r in rows:
-        print(f"{r}")
-
-    print("\n  b) Matriculados del Maule en ING. CIVIL INFORMATICA:")
-    rows = session.execute("""
-        SELECT cedula, periodo, sexo, puntaje
-        FROM postulantes_por_region_carrera
-        WHERE region  = 'REGION DEL MAULE'
-          AND carrera = 'INGENIERIA CIVIL INFORMATICA'
-          AND estado  = 'MATRICULADO'
-        LIMIT 5
-    """)
-    for r in rows:
-        print(f"{r}")
-
-    print("\n  c) Matriculados en CIENCIAS DE LA SALUD (top puntaje):")
-    rows = session.execute("""
-        SELECT cedula, puntaje, carrera, periodo
-        FROM postulantes_por_facultad
-        WHERE facultad = 'CIENCIAS DE LA SALUD'
-          AND estado   = 'MATRICULADO'
-        LIMIT 5
-    """)
-    for r in rows:
-        print(f"{r}")
-
 
 def main():
-    print(f"\nLeyendo {EXCEL_PATH}")
+    print(f"\nLeyendo: {EXCEL_PATH}")
     try:
         df = pd.read_excel(EXCEL_PATH, engine="openpyxl")
     except FileNotFoundError:

@@ -9,7 +9,7 @@ CREATE TABLE postulantes_por_carrera (
     cedula        TEXT,
     sexo          TEXT,
     preferencia   INT,
-    estado        TEXT,
+    matriculado   TEXT,
     facultad      TEXT,
     puntaje       DOUBLE,
     grupo_depen   TEXT,
@@ -20,7 +20,7 @@ CREATE TABLE postulantes_por_carrera (
     psu_promlm    DOUBLE,
     pace          TEXT,
     gratuidad     TEXT,
-    PRIMARY KEY ((carrera, estado), periodo, cedula)
+    PRIMARY KEY ((carrera, matriculado), periodo, cedula)
 ) WITH CLUSTERING ORDER BY (periodo ASC, cedula ASC);
 
 CREATE TABLE postulantes_por_region_carrera (
@@ -30,7 +30,7 @@ CREATE TABLE postulantes_por_region_carrera (
     cedula        TEXT,
     sexo          TEXT,
     preferencia   INT,
-    estado        TEXT,
+    matriculado   TEXT,
     facultad      TEXT,
     puntaje       DOUBLE,
     grupo_depen   TEXT,
@@ -40,7 +40,7 @@ CREATE TABLE postulantes_por_region_carrera (
     psu_promlm    DOUBLE,
     pace          TEXT,
     gratuidad     TEXT,
-    PRIMARY KEY ((region, carrera, estado), periodo, cedula)
+    PRIMARY KEY ((region, carrera, matriculado), periodo, cedula)
 ) WITH CLUSTERING ORDER BY (periodo ASC, cedula ASC);
 
 CREATE TABLE postulantes_por_facultad (
@@ -51,7 +51,7 @@ CREATE TABLE postulantes_por_facultad (
     sexo          TEXT,
     preferencia   INT,
     carrera       TEXT,
-    estado        TEXT,
+    matriculado   TEXT,
     grupo_depen   TEXT,
     region        TEXT,
     latitud       DOUBLE,
@@ -60,5 +60,5 @@ CREATE TABLE postulantes_por_facultad (
     psu_promlm    DOUBLE,
     pace          TEXT,
     gratuidad     TEXT,
-    PRIMARY KEY ((facultad, estado), puntaje, cedula)
+    PRIMARY KEY ((facultad, matriculado), puntaje, cedula)
 ) WITH CLUSTERING ORDER BY (puntaje DESC, cedula ASC);
