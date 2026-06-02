@@ -1,0 +1,18 @@
+Docker + MongoDB
+
+docker pull mongo:latest
+
+Dependencias:
+pip install pymongo
+pip install sentence_transformers
+
+Levantar la BD:
+docker compose up -d
+python poblarmongo.py
+
+Check Status:
+docker exec -it mongo1 mongosh
+rs.status()
+
+MongoDB Compass:
+URL connection string: mongodb://localhost:27017,localhost:27018,localhost:27019/?replicaSet=rs0
