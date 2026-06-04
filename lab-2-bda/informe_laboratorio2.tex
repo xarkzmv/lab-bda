@@ -1,0 +1,503 @@
+\documentclass[12pt,a4paper]{article}
+
+% --- Paquetes ---
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=3cm]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{setspace}
+\usepackage{booktabs}
+\usepackage{parskip}
+
+% --- Configuración de listings para Python ---
+\definecolor{codegreen}{rgb}{0.1,0.5,0.1}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.45,0.1,0.6}
+\definecolor{backcolour}{rgb}{0.96,0.96,0.96}
+\definecolor{keywordcolor}{rgb}{0.0,0.3,0.7}
+
+\lstdefinestyle{pythonstyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{keywordcolor}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=4,
+    frame=single,
+    rulecolor=\color{codegray}
+}
+
+\lstdefinestyle{yamlstyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{keywordcolor},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    captionpos=b,
+    numbers=left,
+    numbersep=5pt,
+    frame=single,
+    rulecolor=\color{codegray},
+    tabsize=2
+}
+
+\lstset{style=pythonstyle}
+
+% --- Configuración de hyperref ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue,
+    pdftitle={Informe Laboratorio 2 - MongoDB RAG},
+    pdfauthor={INF325 Bases de Datos Avanzadas}
+}
+
+% =========================================================
+\begin{document}
+% =========================================================
+
+% --- Portada ---
+\begin{titlepage}
+    \centering
+    \vspace*{1.5cm}
+    {\Large \textbf{Universidad}\\[0.3cm]
+    \large Facultad de Ingeniería\\[0.2cm]
+    \large INF325 -- Bases de Datos Avanzadas}\\[2cm]
+
+    \rule{\textwidth}{1.5pt}\\[0.4cm]
+    {\LARGE \textbf{Informe Laboratorio 2}}\\[0.3cm]
+    {\Large Sistema RAG sobre MongoDB Replica Set}\\[0.3cm]
+    \rule{\textwidth}{1.5pt}\\[2cm]
+
+    \begin{tabular}{ll}
+        \textbf{Asignatura:} & INF325 Bases de Datos Avanzadas \\[0.3cm]
+        \textbf{Laboratorio:} & N\textsuperscript{o} 2 -- MongoDB \\[0.3cm]
+        \textbf{Fecha:} & Junio, 2026 \\
+    \end{tabular}\\[3cm]
+
+    \vfill
+    {\large Santiago, Chile\\2026}
+\end{titlepage}
+
+% --- Tabla de contenidos ---
+\tableofcontents
+\newpage
+
+% =========================================================
+\section*{Resumen}
+\addcontentsline{toc}{section}{Resumen}
+% =========================================================
+
+El presente informe documenta el diseño, implementación y validación de un sistema de \textit{Retrieval-Augmented Generation} (RAG) construido sobre una infraestructura de MongoDB configurada como Replica Set de tres nodos en Docker. El objetivo central fue demostrar la viabilidad de utilizar una base de datos documental de propósito general como motor de búsqueda semántica, prescindiendo de soluciones vectoriales especializadas.
+
+Para lograrlo, se procesó un corpus de discursos históricos mediante la librería \texttt{sentence-transformers}, generando representaciones vectoriales (\textit{embeddings}) de cada documento. Dichos vectores fueron almacenados junto al texto original en la colección \texttt{Discursos} de la base de datos \texttt{Política}. Sobre esta colección se implementó un motor de búsqueda por similitud coseno que, dada una consulta en lenguaje natural, recupera los cinco documentos más relevantes.
+
+Adicionalmente, la arquitectura de tres réplicas garantizó alta disponibilidad: ante la caída del nodo primario, el clúster reeligió automáticamente un nuevo primario, asegurando la continuidad del servicio sin intervención manual. Los resultados obtenidos confirman que MongoDB, combinado con técnicas de NLP, constituye una plataforma robusta para aplicaciones de recuperación semántica de información en entornos distribuidos.
+
+% =========================================================
+\section{Introducción}
+% =========================================================
+
+La recuperación de información ha evolucionado significativamente en la última década. Los motores de búsqueda tradicionales, basados en coincidencia exacta de palabras clave (\textit{keyword matching}), presentan limitaciones intrínsecas: no comprenden sinónimos, no capturan la intención detrás de una consulta y requieren que el usuario conozca de antemano la terminología exacta del corpus. Esta brecha semántica se vuelve crítica en dominios como el análisis de discursos políticos, documentos jurídicos o literatura científica, donde el mismo concepto puede expresarse con vocabularios muy distintos.
+
+Los sistemas RAG (\textit{Retrieval-Augmented Generation}) emergen como respuesta a esta limitación. En lugar de comparar cadenas de texto, transforman tanto los documentos como las consultas en vectores de alta dimensión (\textit{embeddings}) que capturan el significado semántico. La búsqueda se convierte entonces en un problema de geometría: encontrar los vectores más cercanos al vector de consulta, independientemente de las palabras utilizadas.
+
+En este contexto, el presente laboratorio propone implementar un sistema RAG completo sobre MongoDB, desplegado como Replica Set de tres nodos mediante Docker Compose. La elección de MongoDB responde a su flexibilidad para almacenar documentos heterogéneos (texto, vectores, metadatos) y a su soporte nativo para alta disponibilidad mediante conjuntos de réplicas. El corpus de trabajo consiste en discursos históricos en formato \texttt{.txt}, vectorizados con el modelo \texttt{all-MiniLM-L6-v2} de la librería \texttt{sentence-transformers}.
+
+Los objetivos específicos del laboratorio son:
+\begin{enumerate}
+    \item Implementar una arquitectura de clúster MongoDB con un primario y dos secundarios.
+    \item Construir un pipeline de preprocesamiento que calcule hash SHA-256, genere embeddings e inserte documentos en MongoDB.
+    \item Desarrollar un motor de búsqueda semántica basado en similitud coseno.
+    \item Demostrar la alta disponibilidad del Replica Set simulando la caída del nodo primario.
+\end{enumerate}
+
+% =========================================================
+\section{Arquitectura del Sistema}
+% =========================================================
+
+\subsection{Infraestructura: MongoDB Replica Set con Docker Compose}
+
+La arquitectura implementada consiste en tres instancias de MongoDB 7 ejecutándose como contenedores Docker independientes, interconectados mediante una red \textit{bridge} privada denominada \texttt{mongo-cluster}. Los tres nodos conforman el Replica Set \texttt{rs0}:
+
+\begin{itemize}
+    \item \textbf{mongo1} (primario, prioridad 2): expuesto en el puerto \texttt{27017} del host local.
+    \item \textbf{mongo2} (secundario, prioridad 1): expuesto en el puerto \texttt{27018}.
+    \item \textbf{mongo3} (secundario, prioridad 1): expuesto en el puerto \texttt{27019}.
+\end{itemize}
+
+La prioridad diferenciada garantiza que \texttt{mongo1} sea elegido primario en condiciones normales. Un contenedor adicional de configuración (\texttt{mongo-setup}) ejecuta la inicialización del Replica Set mediante \texttt{rs.initiate()} una sola vez al desplegar el stack, asegurando reproducibilidad del entorno.
+
+Cada nodo persiste sus datos en un volumen Docker independiente (\texttt{mongo1\_data}, \texttt{mongo2\_data}, \texttt{mongo3\_data}), lo que garantiza que los datos sobrevivan reinicios de contenedores.
+
+El archivo \texttt{docker-compose.yaml} que define esta infraestructura se muestra a continuación:
+
+\begin{lstlisting}[style=yamlstyle, language=,
+    caption={Configuración Docker Compose del Replica Set MongoDB},
+    label={lst:docker-compose}]
+services:
+  mongo1:
+    image: mongo:7
+    container_name: mongo1
+    hostname: mongo1
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo1_data:/data/db
+    networks:
+      - mongo-cluster
+
+  mongo2:
+    image: mongo:7
+    container_name: mongo2
+    hostname: mongo2
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo2_data:/data/db
+    networks:
+      - mongo-cluster
+
+  mongo3:
+    image: mongo:7
+    container_name: mongo3
+    hostname: mongo3
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo3_data:/data/db
+    networks:
+      - mongo-cluster
+
+  mongo-setup:
+    image: mongo:7
+    container_name: mongo-setup
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    networks:
+      - mongo-cluster
+    restart: "no"
+    entrypoint: >
+      bash -c "
+      until mongosh --host mongo1:27017 \
+            --eval 'print(\"ready\")'; do
+        sleep 5;
+      done;
+      mongosh --host mongo1:27017 <<EOF
+      rs.initiate({
+        _id: 'rs0',
+        members: [
+          { _id: 0, host: 'mongo1:27017', priority: 2 },
+          { _id: 1, host: 'mongo2:27017', priority: 1 },
+          { _id: 2, host: 'mongo3:27017', priority: 1 }
+        ]
+      });
+      EOF
+      "
+
+volumes:
+  mongo1_data:
+  mongo2_data:
+  mongo3_data:
+
+networks:
+  mongo-cluster:
+    driver: bridge
+\end{lstlisting}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{arquitectura.png}
+\caption{Arquitectura del Clúster MongoDB en Docker}
+\end{figure}
+
+\subsection{Comandos de Gestión del Clúster}
+
+Para operar el clúster se utilizaron los siguientes comandos:
+
+\begin{lstlisting}[language=bash, caption={Comandos de gestión del clúster}]
+# Instalar dependencias Python
+pip install pymongo sentence_transformers scikit-learn
+
+# Levantar el Replica Set
+docker compose up -d
+
+# Verificar estado del Replica Set
+docker exec -it mongo1 mongosh
+> rs.status()
+
+# Conexion directa desde MongoDB Compass
+# mongodb://localhost:27017/?directConnection=true
+\end{lstlisting}
+
+% =========================================================
+\section{Preprocesamiento del Corpus Textual (Requisito 2)}
+% =========================================================
+
+\subsection{Diseño del Pipeline}
+
+El preprocesamiento transforma los archivos de texto plano del directorio \texttt{DiscursosOriginales/} en documentos MongoDB enriquecidos con representaciones vectoriales. El pipeline sigue tres etapas secuenciales por documento:
+
+\begin{enumerate}
+    \item \textbf{Lectura y normalización:} El archivo \texttt{.txt} se lee con codificación UTF-8 y se elimina espaciado innecesario con \texttt{strip()}.
+    \item \textbf{Identificación única mediante SHA-256:} Se calcula el hash criptográfico del contenido textual y se utiliza como \texttt{\_id} del documento en MongoDB. Esto garantiza unicidad y evita duplicados, ya que dos documentos con el mismo contenido producirán el mismo hash.
+    \item \textbf{Generación de embedding:} El modelo \texttt{all-MiniLM-L6-v2} transforma el texto en un vector de 384 dimensiones que captura su significado semántico. El vector se convierte a lista Python para ser serializable como BSON.
+\end{enumerate}
+
+La estructura del documento insertado en MongoDB es:
+\begin{itemize}
+    \item \texttt{\_id}: hash SHA-256 del texto (string hexadecimal de 64 caracteres).
+    \item \texttt{texto}: contenido íntegro del discurso original.
+    \item \texttt{embedding}: lista de 384 valores flotantes.
+\end{itemize}
+
+\subsection{Implementación: \texttt{poblarmongo.py}}
+
+\begin{lstlisting}[style=pythonstyle, language=Python,
+    caption={Configuración de conexión al Replica Set y carga del modelo},
+    label={lst:conexion}]
+import os
+import hashlib
+from pymongo import MongoClient
+from sentence_transformers import SentenceTransformer
+
+FOLDER = "DiscursosOriginales"
+
+# Conexion al Replica Set (los tres nodos)
+MONGO_URI = (
+    "mongodb://localhost:27017,"
+    "localhost:27018,"
+    "localhost:27019/"
+    "?replicaSet=rs0"
+)
+
+client = MongoClient(MONGO_URI)
+db = client["Politica"]
+collection = db["Discursos"]
+
+# Modelo de embeddings preentrenado
+model = SentenceTransformer("all-MiniLM-L6-v2")
+\end{lstlisting}
+
+La cadena de conexión incluye los tres nodos del Replica Set. El driver de PyMongo descubre automáticamente el nodo primario para operaciones de escritura, garantizando transparencia frente a conmutaciones por error (\textit{failover}).
+
+\begin{lstlisting}[style=pythonstyle, language=Python,
+    caption={Pipeline de procesamiento e inserción por documento},
+    label={lst:pipeline}]
+for filename in os.listdir(FOLDER):
+    if not filename.endswith(".txt"):
+        continue
+
+    path = os.path.join(FOLDER, filename)
+    with open(path, "r", encoding="utf-8") as f:
+        texto = f.read().strip()
+
+    # Paso 1: Identificador unico por hash SHA-256
+    sha256 = hashlib.sha256(
+        texto.encode("utf-8")
+    ).hexdigest()
+
+    # Paso 2: Generacion del embedding semantico
+    embedding = model.encode(texto).tolist()
+
+    # Paso 3: Construccion e insercion del documento
+    documento = {
+        "_id": sha256,
+        "texto": texto,
+        "embedding": embedding
+    }
+
+    try:
+        collection.insert_one(documento)
+        print(f"Inserted: {filename}")
+    except Exception as e:
+        print(f"Skipped {filename}: {e}")
+\end{lstlisting}
+
+El bloque \texttt{try/except} captura errores de clave duplicada (\texttt{DuplicateKeyError}), lo que permite re-ejecutar el script de forma idempotente: si un documento ya fue insertado, simplemente se omite sin interrumpir el procesamiento de los demás archivos.
+
+% =========================================================
+\section{Motor de Búsqueda Semántica (Requisito 3)}
+% =========================================================
+
+\subsection{Fundamento Teórico: Similitud Coseno}
+
+La similitud coseno mide el ángulo entre dos vectores en un espacio de alta dimensionalidad. Formalmente, dados dos vectores $\mathbf{a}$ y $\mathbf{b}$:
+
+\[
+\text{similitud\_coseno}(\mathbf{a}, \mathbf{b}) = \frac{\mathbf{a} \cdot \mathbf{b}}{\|\mathbf{a}\| \cdot \|\mathbf{b}\|}
+\]
+
+El resultado varía entre $-1$ y $1$; un valor cercano a $1$ indica alta similitud semántica, mientras que $0$ implica ortogonalidad (sin relación). A diferencia de la distancia euclidiana, la similitud coseno es invariante a la magnitud del vector, lo que la hace robusta frente a documentos de diferente longitud.
+
+En el contexto del sistema RAG, el proceso de búsqueda consiste en:
+\begin{enumerate}
+    \item Vectorizar la consulta del usuario con el mismo modelo usado durante la ingesta.
+    \item Recuperar todos los embeddings almacenados en MongoDB.
+    \item Calcular la similitud coseno entre el vector de consulta y cada embedding del corpus.
+    \item Ordenar los resultados de mayor a menor similitud y retornar el \textit{top-k}.
+\end{enumerate}
+
+\subsection{Implementación: \texttt{busqueda.py}}
+
+\begin{lstlisting}[style=pythonstyle, language=Python,
+    caption={Conexión y carga del modelo para búsqueda},
+    label={lst:busqueda-init}]
+import numpy as np
+from pymongo import MongoClient
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+
+MONGO_URI = "mongodb://localhost:27017/?directConnection=true"
+client = MongoClient(MONGO_URI)
+db = client["Politica"]
+collection = db["Discursos"]
+
+model = SentenceTransformer("all-MiniLM-L6-v2")
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle, language=Python,
+    caption={Función principal de búsqueda por similitud coseno},
+    label={lst:busqueda-func}]
+def buscar_discursos_similares(consulta, top_k=5):
+    # Vectorizar la consulta del usuario
+    query_embedding = model.encode([consulta])
+
+    # Recuperar todos los documentos con sus embeddings
+    documentos = list(collection.find({}, {
+        "_id": 1,
+        "embedding": 1,
+        "texto": 1
+    }))
+
+    if not documentos:
+        print("No hay documentos en la base de datos.")
+        return
+
+    # Calcular similitud coseno entre consulta y corpus
+    embeddings_db = [doc["embedding"] for doc in documentos]
+    similitudes = cosine_similarity(query_embedding, embeddings_db)[0]
+
+    # Construir y ordenar resultados
+    resultados = []
+    for i, doc in enumerate(documentos):
+        resultados.append({
+            "id": doc["_id"],
+            "similitud": similitudes[i],
+            "extracto": doc.get("texto", "")[:150] + "..."
+        })
+
+    resultados_ordenados = sorted(
+        resultados,
+        key=lambda x: x["similitud"],
+        reverse=True
+    )[:top_k]
+
+    # Presentar resultados
+    for i, res in enumerate(resultados_ordenados, 1):
+        porcentaje = res['similitud'] * 100
+        print(f"Top {i} | Similitud: {porcentaje:.2f}%")
+        print(f"ID (SHA-256): {res['id']}")
+        print(f"Extracto: \"{res['extracto']}\"")
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle, language=Python,
+    caption={Bucle interactivo de consultas},
+    label={lst:busqueda-main}]
+if __name__ == "__main__":
+    print("\n--- Sistema RAG de Busqueda de Discursos ---")
+    while True:
+        consulta_usuario = input(
+            "\nIngresa tu busqueda (o 'salir' para terminar): "
+        )
+        if consulta_usuario.lower() == 'salir':
+            break
+        if consulta_usuario.strip() == "":
+            continue
+        buscar_discursos_similares(consulta_usuario)
+\end{lstlisting}
+
+El sistema expone una interfaz interactiva que permite consultas sucesivas sin recargar el modelo, optimizando así los tiempos de respuesta a partir de la segunda búsqueda.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{evidencia_busqueda.png}
+\caption{Resultados del motor de Búsqueda Semántica}
+\end{figure}
+
+% =========================================================
+\section{Alta Disponibilidad (Requisito 4)}
+% =========================================================
+
+\subsection{Teoría: Tolerancia a Fallos en MongoDB Replica Set}
+
+Un Replica Set de MongoDB implementa el protocolo de consenso basado en mayoría de votos (\textit{majority voting}). En todo momento existe exactamente un nodo \textbf{primario} que acepta operaciones de escritura; el resto son nodos \textbf{secundarios} que replican las operaciones del primario a través del \textit{oplog} (registro de operaciones).
+
+Cuando el primario deja de responder (por fallo, reinicio o desconexión de red), los nodos secundarios detectan su ausencia tras expirar el \textit{heartbeat} (por defecto, 10 segundos) e inician una elección. El nodo con mayor prioridad que tenga los datos más actualizados es elegido nuevo primario. Este proceso tarda típicamente entre 10 y 30 segundos, tiempo durante el cual las escrituras se bloquean pero las lecturas de datos no críticos pueden continuar en secundarios con \texttt{readPreference: secondaryPreferred}.
+
+Para que una elección sea válida se requiere que voten más de la mitad de los nodos (\textit{quórum}). Con tres nodos, se tolera la caída de exactamente un nodo manteniendo quórum (2 de 3).
+
+\subsection{Metodología de Prueba}
+
+La prueba de alta disponibilidad se realizó siguiendo estos pasos:
+
+\begin{enumerate}
+    \item \textbf{Verificación del estado inicial:} Se ejecutó \texttt{rs.status()} desde \texttt{mongosh} para confirmar que \texttt{mongo1} era el primario y \texttt{mongo2}/\texttt{mongo3} los secundarios.
+    \item \textbf{Caída del nodo primario:} Se detuvo el contenedor \texttt{mongo1} con el comando \texttt{docker stop mongo1}, simulando una falla de hardware o de red.
+    \item \textbf{Observación del failover:} Transcurridos aproximadamente 15 segundos, el clúster detectó la ausencia del primario y realizó una elección automática, designando \texttt{mongo2} como nuevo primario.
+    \item \textbf{Verificación de continuidad:} Se ejecutó nuevamente \texttt{rs.status()} conectándose al puerto \texttt{27018}, confirmando el nuevo rol de cada nodo y la disponibilidad del servicio.
+    \item \textbf{Recuperación:} Se reinició \texttt{mongo1} con \texttt{docker start mongo1}; el nodo se reintegró automáticamente como secundario y sincronizó las operaciones pendientes mediante el \textit{oplog}.
+\end{enumerate}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{evidencia_alta_disponibilidad.png}
+\caption{Evidencia de Alta Disponibilidad tras caída del nodo primario}
+\end{figure}
+
+\subsection{Análisis de Resultados}
+
+La prueba demostró que el tiempo de recuperación automática (\textit{RTO} -- \textit{Recovery Time Objective}) fue inferior a 30 segundos, sin pérdida de datos escritos previamente. Las conexiones establecidas con la cadena de conexión completa del Replica Set (\texttt{?replicaSet=rs0}) redirigieron automáticamente al nuevo primario gracias al descubrimiento de topología implementado en el driver PyMongo, lo que valida el carácter transparente del \textit{failover} para las aplicaciones cliente.
+
+% =========================================================
+\section{Conclusiones}
+% =========================================================
+
+El desarrollo de este laboratorio permitió integrar y aplicar de forma práctica un conjunto amplio de conceptos fundamentales en bases de datos avanzadas y sistemas distribuidos. A continuación se presentan las reflexiones técnicas más relevantes del proceso.
+
+\textbf{Sobre la arquitectura distribuida:} La configuración de un Replica Set de MongoDB mediante Docker Compose demostró ser un proceso reproducible y declarativo. La separación de los tres nodos en contenedores independientes con volúmenes persistentes refleja fielmente arquitecturas de producción, donde cada nodo reside en un servidor físico distinto. La automatización de la inicialización mediante \texttt{rs.initiate()} en el contenedor \texttt{mongo-setup} elimina errores manuales y facilita el despliegue continuo.
+
+\textbf{Sobre la búsqueda semántica:} La implementación del motor RAG reveló una diferencia cualitativa fundamental respecto a la búsqueda por palabras clave. El modelo \texttt{all-MiniLM-L6-v2} produce embeddings que capturan relaciones semánticas latentes: una consulta sobre ``democracia'' puede recuperar discursos que utilicen términos como ``libertad'', ``ciudadanía'' o ``derechos'' sin contener la palabra ``democracia'' explícitamente. Esta capacidad es crítica para corpus históricos donde el vocabulario político ha evolucionado con el tiempo.
+
+\textbf{Sobre la alta disponibilidad:} La prueba de \textit{failover} evidenció que el protocolo de elección de MongoDB es robusto y rápido. El hecho de que las aplicaciones cliente no requieran intervención manual ni reconfiguración tras la reelección del primario subraya la importancia de usar cadenas de conexión que incluyan todos los nodos del Replica Set. Un sistema con un único punto de conexión habría fallado irreversiblemente ante la caída del primario.
+
+\textbf{Sobre el diseño del pipeline de datos:} El uso del hash SHA-256 como identificador de documento es una decisión de diseño acertada: garantiza idempotencia en la ingesta (re-ejecuciones no generan duplicados), provee integridad implícita del contenido y elimina la dependencia de identificadores secuenciales que podrían colisionar en entornos distribuidos.
+
+\textbf{Limitación observada:} El enfoque implementado recupera todos los embeddings de la base de datos en memoria para calcular la similitud. En corpus de gran escala (millones de documentos) este diseño sería inviable. La solución escalable implica el uso de índices vectoriales (como \texttt{Atlas Vector Search} en MongoDB Atlas o soluciones como \texttt{FAISS} o \texttt{pgvector}) que limiten el espacio de búsqueda antes del cálculo de similitud.
+
+En síntesis, el laboratorio consolidó la comprensión de cómo tecnologías maduras como MongoDB pueden extenderse para soportar casos de uso de inteligencia artificial, demostrando que la línea entre bases de datos transaccionales y almacenes vectoriales se difumina progresivamente con la evolución de los sistemas modernos.
+
+% =========================================================
+\end{document}
